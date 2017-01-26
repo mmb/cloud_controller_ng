@@ -6,13 +6,14 @@ module VCAP::CloudController
     let(:app) { AppModel.make }
     let(:type) { 'docker' }
     let(:message) { PackageCreateMessage.new({ type: type, app_guid: app.guid }) }
+    let(:user_audit_info) { UserAuditInfo.new(user_guid: user_guid, user_email: user_email) }
 
     describe '#create' do
       let(:user_guid) { 'gooid' }
       let(:user_email) { 'user@example.com' }
 
       it 'creates the package with the correct values' do
-        result = described_class.create(message: message, user_guid: user_guid, user_email: user_email)
+        result = described_class.create(message: message, user_audit_info: user_audit_info)
 
         expect(app.packages.first).to eq(result)
         created_package = PackageModel.find(guid: result.guid)
@@ -23,15 +24,14 @@ module VCAP::CloudController
       it 'creates an audit event' do
         expect(Repositories::PackageEventRepository).to receive(:record_app_package_create).with(
           instance_of(PackageModel),
-          user_guid,
-          user_email,
+          user_audit_info,
           {
             'app_guid' => app.guid,
             'type' => type,
           }
         )
 
-        described_class.create(message: message, user_guid: user_guid, user_email: user_email)
+        described_class.create(message: message, user_audit_info: user_audit_info)
       end
 
       describe 'docker packages' do
@@ -47,7 +47,7 @@ module VCAP::CloudController
         end
 
         it 'persists docker info' do
-          result = described_class.create(message: message, user_guid: user_guid, user_email: user_email)
+          result = described_class.create(message: message, user_audit_info: user_audit_info)
 
           expect(app.packages.first).to eq(result)
           created_package = PackageModel.find(guid: result.guid)
@@ -63,7 +63,7 @@ module VCAP::CloudController
           let(:url) { nil }
 
           it 'sets the state to CREATED_STATE' do
-            result = described_class.create(message: message, user_guid: user_guid, user_email: user_email)
+            result = described_class.create(message: message, user_audit_info: user_audit_info)
             expect(result.type).to eq('bits')
             expect(result.state).to eq(PackageModel::CREATED_STATE)
           end
@@ -71,7 +71,7 @@ module VCAP::CloudController
 
         context 'when the type is docker' do
           it 'sets the state to READY_STATE' do
-            result = described_class.create(message: message, user_guid: user_guid, user_email: user_email)
+            result = described_class.create(message: message, user_audit_info: user_audit_info)
             expect(result.type).to eq('docker')
             expect(result.state).to eq(PackageModel::READY_STATE)
           end
@@ -85,7 +85,7 @@ module VCAP::CloudController
 
         it 'raises an InvalidPackage error' do
           expect {
-            described_class.create(message: message, user_guid: user_guid, user_email: user_email)
+            described_class.create(message: message, user_audit_info: user_audit_info)
           }.to raise_error(PackageCreate::InvalidPackage, 'the message')
         end
       end
